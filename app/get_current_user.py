@@ -1,8 +1,10 @@
+import uuid
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi import HTTPException, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.models.UsersModel import User
+from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from app.utillits import verify_access_token
 
@@ -11,15 +13,17 @@ from app.utillits import verify_access_token
 
 bearer = HTTPBearer(auto_error=True)
 
-async def get_current_id(token: HTTPAuthorizationCredentials = Depends(bearer)) -> int:
+async def get_current_id(token: HTTPAuthorizationCredentials = Depends(bearer)) -> uuid.UUID:
     return await verify_access_token(token.credentials)
 
 async def get_current_user(
-    user_id: int = Depends(get_current_id),
+    user_id: uuid.UUID = Depends(get_current_id),
     session: AsyncSession = Depends(get_session)
 ) -> User:
     user = await session.scalar(
-        select(User).where(User.id == user_id)
+        select(User)
+        .options(selectinload(User.groups))
+        .where(User.id == user_id)
     )
 
     if not user:

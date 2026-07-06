@@ -7,10 +7,10 @@ from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID
 from app.db import Base
 from app.enum import UserRole
+from app.models.GroupModel import Group
 from sqlalchemy import ForeignKey, String
 
 if typing.TYPE_CHECKING:
-    from app.models.GroupModel import Group
     from app.models.TokenModel import RefreshToken
 
 
@@ -24,7 +24,7 @@ class Users(Base):
     name: Mapped[str]
     surname: Mapped[str]
     email: Mapped[str] = mapped_column(unique=True)
-    password: Mapped[bytes]
+    password: Mapped[str] = mapped_column(String)
     dob: Mapped[datetime.date]
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), 
                                            default=UserRole.TEACHER)

@@ -1,5 +1,5 @@
 import jwt
-from uuid import uuid4
+from uuid import UUID, uuid4
 from hashlib import sha256
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHash
@@ -31,7 +31,7 @@ def hash_refresh_token(token: str) -> str:
     return sha256(token.encode()).hexdigest()
 
 # Создание рефреш токена
-def create_refresh_token(user_id: int) -> str:
+def create_refresh_token(user_id: UUID) -> str:
     payload = {
         "sub": str(user_id),
         "jti": str(uuid4()),
@@ -61,7 +61,7 @@ def decode_refresh_token(token: str) -> dict:
     return payload
 
 # Создание токена
-def create_access_token(user_id: int) -> str:
+def create_access_token(user_id: UUID) -> str:
     payload = {
         "sub": str(user_id),
         "type": "access",
@@ -108,7 +108,7 @@ async def decode_access_token(
 
 
 # Проверка токена
-async def verify_access_token(token: str) -> int:
+async def verify_access_token(token: str) -> UUID:
     """
     Проверяет токен, валидирует структуру и возвращает user_id (sub).
     Если токен неверен — вызывает HTTPException.
@@ -124,7 +124,7 @@ async def verify_access_token(token: str) -> int:
         )
 
     try:
-        return int(user_id)
+        return UUID(user_id)
     except ValueError:
         raise HTTPException(
             status_code=401,

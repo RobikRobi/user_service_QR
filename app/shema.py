@@ -1,6 +1,6 @@
 import datetime
 import uuid
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from app.enum import UserRole
 
 class LoginUser(BaseModel):
@@ -11,11 +11,20 @@ class RegisterUser(BaseModel):
     name: str
     surname: str
     email: EmailStr
-    password: str | bytes
+    password: str
     dob: datetime.date
     role: UserRole
 
+class ShowGroup(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name_group: str
+    createdAt: datetime.datetime
+    updatedAt: datetime.datetime
+
 class ShowUser(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     
     id: uuid.UUID
     name: str
@@ -25,6 +34,7 @@ class ShowUser(BaseModel):
     role: UserRole
     createdAt: datetime.datetime
     updatedAt: datetime.datetime
+    groups: list[ShowGroup] = Field(default_factory=list)
     
 class PasswordResetRequest(BaseModel):
     email: EmailStr

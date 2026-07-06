@@ -1,4 +1,6 @@
 import uuid
+from app.db import engine, Base
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy import delete
@@ -7,7 +9,7 @@ from sqlalchemy.future import select
 from app.models.UsersModel import User
 from app.shema import RegisterUser, ShowUser, LoginUser
 from fastapi import HTTPException
-from app.db import get_session
+from app.db import get_session, init_db
 from app.config import config
 from app.utillits import create_access_token, hash_password, check_password
 from app.utillits import create_refresh_token, hash_refresh_token, decode_refresh_token
@@ -17,17 +19,53 @@ from app.shema import PasswordResetRequest, PasswordResetConfirm
 from app.models.UsersModel import PasswordResetToken
 from app.models.TokenModel import RefreshToken
 
+
 app = FastAPI(
     title="User service",
     version="1.0.0",
-    root_path="/users",
+    root_path="/users"
 )
 
+# Создаём базу данных
+@app.get("/init")
+async def create_db():
+    async with engine.begin() as conn:
+        try:
+            await conn.run_sync(Base.metadata.drop_all)
+        except Error as e:
+            print(e)     
+        await  conn.run_sync(Base.metadata.create_all)
+    return({"msg":"db creat! =)"})
 
-# Получение пользователя
-@app.get("/me", response_model=ShowUser)
-async def me(me = Depends(get_current_user)):
-     return me
+# Регистрация пользователя с отправкой сообщения на email
+@app.post("/register")
+async def register_user(data:RegisterUser, session:AsyncSession = Depends(get_session)):
+    
+    isUserEx = await session.scalar(select(User).where(User.email == data.email))
+    
+    if isUserEx:
+        raise HTTPException(status_code=411, detail={
+        "status":411,
+        "data":"user is exists"
+        })
+        
+    data_dict = data.model_dump()
+        
+    data_dict["password"] = await hash_password(password=data.password)
+    
+    user = User(**data_dict)
+    session.add(user) 
+    await session.flush([user])
+
+    user_id = user.id
+        
+    await session.commit()
+    send_email.delay(user.email, subject, text)
+        
+    user_token = create_access_token(user_id=user_id)
+    data_dict["token"] = user_token  
+        
+    return data_dict
 
 # Авторизация пользователя
 @app.post("/login")
@@ -39,7 +77,7 @@ async def login(
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()
 
-    if not user or not check_password(data.password, user.password):
+    if not user or not await check_password(user.password, data.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     access_token = create_access_token(user.id)
@@ -59,6 +97,11 @@ async def login(
         "refresh_token": refresh_token,
         "token_type": "bearer"
     }
+
+# Получение пользователя
+@app.get("/me", response_model=ShowUser)
+async def me(me = Depends(get_current_user)):
+     return me
 
 # Рефреш токен
 @app.post("/refresh")
@@ -84,7 +127,7 @@ async def refresh(
     token_db.revoked = True
 
     # create new tokens
-    user_id = int(payload["sub"])
+    user_id = uuid.UUID(payload["sub"])
     new_access = create_access_token(user_id)
     new_refresh = create_refresh_token(user_id)
 
@@ -118,38 +161,6 @@ text = """
 
 С уважением, администрация сайта QRCard.
 """
-
-
-
-# Регистрация пользователя с отправкой сообщения на email
-@app.post("/register")
-async def register_user(data:RegisterUser, session:AsyncSession = Depends(get_session)):
-    
-    isUserEx = await session.scalar(select(User).where(User.email == data.email))
-    
-    if isUserEx:
-        raise HTTPException(status_code=411, detail={
-        "status":411,
-        "data":"user is exists"
-        })
-        
-    data_dict = data.model_dump()
-        
-    data_dict["password"] = await hash_password(password=data.password)
-    
-    user = User(**data_dict)
-    session.add(user) 
-    await session.flush([user])
-
-    user_id = user.id
-        
-    await session.commit()
-    send_email.delay(user.email, subject, text)
-        
-    user_token = create_access_token(user_id=user_id)
-    data_dict["token"] = user_token  
-        
-    return data_dict
 
 
 # Запрос на восстановление пароля

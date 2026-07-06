@@ -21,7 +21,7 @@ class EnvData(BaseSettings):
     JWT_PRIVATE_KEY_PATH: Path | None = None
     JWT_PUBLIC_KEY_PATH: Path | None = None
     JWT_ALGORITHM: str | None = None
-    model_config = SettingsConfigDict(env_file='.env', extra='ignore')
+    model_config = SettingsConfigDict(env_file=BASE_DIR / '.env', extra='ignore')
 
 
 class Config(BaseModel):
