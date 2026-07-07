@@ -307,7 +307,7 @@ async def create_group(data: CreateGroup,
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Вы не имеетe прав на создание группы."
         )
-    newGroup = CreateGroup(**data.model_dump())
+    newGroup = Group(**data.model_dump())
     session.add(newGroup)
     await session.commit()
     await session.refresh(newGroup)

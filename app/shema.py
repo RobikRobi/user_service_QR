@@ -29,7 +29,7 @@ class ShowUser(BaseModel):
     role: UserRole
     createdAt: datetime.datetime
     updatedAt: datetime.datetime
-    groups: list[ShowGroup] = Field(default_factory=list)
+    groups: list["ShowGroup"] = Field(default_factory=list)
 
 # Схема для обновления информации о пользователя
 class UpdateUser(BaseModel):
