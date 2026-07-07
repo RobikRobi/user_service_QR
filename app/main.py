@@ -1,14 +1,14 @@
 import uuid
 from app.db import engine, Base
-from contextlib import asynccontextmanager
+from binascii import Error
 from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.models.UsersModel import User
-from app.shema import RegisterUser, ShowUser, LoginUser
-from fastapi import HTTPException
+from app.shema import RegisterUser, ShowUser, LoginUser, UpdateUser
+from fastapi import HTTPException, status
 from app.db import get_session, init_db
 from app.config import config
 from app.utillits import create_access_token, hash_password, check_password
@@ -36,6 +36,21 @@ async def create_db():
             print(e)     
         await  conn.run_sync(Base.metadata.create_all)
     return({"msg":"db creat! =)"})
+
+subject = "Регистрация на сайте QRCard"
+text = """
+Здравствуйте!
+
+Спасибо, что зарегистрировались на нашем сайте.
+
+Теперь Вы можете создавать интерактивные викторины и тесты.
+
+Надеемся, что наш сервис будет полезен Вам в вашей работе 
+и поможет сделать обучение более интересным и эффективным.
+
+С уважением, администрация сайта QRCard.
+"""
+
 
 # Регистрация пользователя с отправкой сообщения на email
 @app.post("/register")
@@ -103,6 +118,51 @@ async def login(
 async def me(me = Depends(get_current_user)):
      return me
 
+# Изменение данных пользователя
+@app.put("/update", response_model=UpdateUser)
+async def update_user( data: UpdateUser, 
+                      me = Depends(get_current_user),
+                      session: AsyncSession = Depends(get_session)):
+    await session.refresh(me)
+    if data.name:
+        me.name = data.name
+    if data.surname:
+        me.surname = data.surname
+    if data.dob:
+        me.dob = data.dob
+    if data.role:
+        me.role = data.role
+    if data.groups:
+        me.groups = data.groups
+
+    await session.commit()
+    await session.refresh(me)
+    
+    return me
+
+# Удаление пользователя
+@app.delete("/delete/{user_id}")
+async def delete_user(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    # Проверка, что текущий пользователь — админ
+    if current_user.role.value != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Вы не имеете прав на удаление пользователя."
+        )
+    user = await session.scalar(select(User).where(User.id == user_id))
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await session.delete(user)
+    await session.commit()
+
+    return {"message": f"User with ID {user_id} has been deleted"}
+
 # Рефреш токен
 @app.post("/refresh")
 async def refresh(
@@ -148,19 +208,6 @@ async def refresh(
         "token_type": "bearer"
     }
 
-subject = "Регистрация на сайте QRCard"
-text = """
-Здравствуйте!
-
-Спасибо, что зарегистрировались на нашем сайте.
-
-Теперь Вы можете создавать интерактивные викторины и тесты.
-
-Надеемся, что наш сервис будет полезен Вам в вашей работе 
-и поможет сделать обучение более интересным и эффективным.
-
-С уважением, администрация сайта QRCard.
-"""
 
 
 # Запрос на восстановление пароля
