@@ -6,10 +6,10 @@ from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from app.models.UsersModel import User
-from app.shema import RegisterUser, ShowUser, LoginUser, UpdateUser
+from app.models.UsersModel import User, PasswordResetToken, Group
+from app.shema import RegisterUser, ShowUser, LoginUser, UpdateUser, CreateGroup, ShowGroup, UpdateGroup
 from fastapi import HTTPException, status
-from app.db import get_session, init_db
+from app.db import get_session
 from app.config import config
 from app.utillits import create_access_token, hash_password, check_password
 from app.utillits import create_refresh_token, hash_refresh_token, decode_refresh_token
@@ -119,8 +119,8 @@ async def me(me = Depends(get_current_user)):
      return me
 
 # Изменение данных пользователя
-@app.put("/update", response_model=UpdateUser)
-async def update_user( data: UpdateUser, 
+@app.put("/update", response_model=ShowUser)
+async def update_user(data: UpdateUser, 
                       me = Depends(get_current_user),
                       session: AsyncSession = Depends(get_session)):
     await session.refresh(me)
@@ -209,7 +209,6 @@ async def refresh(
     }
 
 
-
 # Запрос на восстановление пароля
 @app.post("/password-reset")
 async def password_reset_request(
@@ -296,3 +295,49 @@ async def logout(
     await session.commit()
 
     return {"detail": "Logged out successfully"}
+
+# Создание группы
+@app.post("/groups/create", response_model=ShowGroup)
+async def create_group(data: CreateGroup, 
+                    current_user = Depends(get_current_user), 
+                       session: AsyncSession = Depends(get_session)):
+    # Проверка, что текущий пользователь — учитель или админ
+    if current_user.role.value != "ADMIN" and current_user.role.value != "TEACHER":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Вы не имеетe прав на создание группы."
+        )
+    newGroup = CreateGroup(**data.model_dump())
+    session.add(newGroup)
+    await session.commit()
+    await session.refresh(newGroup)
+    
+    return newGroup
+
+# Получение группы по ID
+@app.get("/groups/{group_id}", response_model=ShowGroup)
+async def get_group(
+    group_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session)
+):
+    group = await session.scalar(select(Group).where(Group.id == group_id))
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    return group
+
+# Редактирование названия группы
+@app.put("/groups/{group_id}")
+async def update_group_name(group_id: uuid.UUID, 
+                            data: UpdateGroup, 
+                            session: AsyncSession = Depends(get_session)):
+    group = await session.scalar(select(Group).where(Group.id == group_id))
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    group.name_group = data.name_group
+    await session.commit()
+    await session.refresh(group)
+
+    return {"detail": f"Group {group_id} name updated", 
+            "group": {"id": group.id, "name_group": group.name_group}}

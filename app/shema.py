@@ -48,6 +48,10 @@ class PasswordResetConfirm(BaseModel):
     token: str
     new_password: str
 
+# Схема для создания группы
+class CreateGroup(BaseModel):
+    name_group: str
+
 # Схема для отображения информации о группе
 class ShowGroup(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -56,3 +60,7 @@ class ShowGroup(BaseModel):
     name_group: str
     createdAt: datetime.datetime
     updatedAt: datetime.datetime
+
+# Схема для создания группы
+class UpdateGroup(BaseModel):
+    name_group: str
