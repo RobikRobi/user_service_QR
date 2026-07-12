@@ -58,6 +58,7 @@ class ShowGroup(BaseModel):
 
     id: uuid.UUID
     name_group: str
+    user_id: uuid.UUID
     createdAt: datetime.datetime
     updatedAt: datetime.datetime
 

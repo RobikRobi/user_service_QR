@@ -6,7 +6,8 @@ from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from app.models.UsersModel import User, PasswordResetToken, Group
+from sqlalchemy.orm import selectinload
+from app.models.UsersModel import User, PasswordResetToken, Group, UsersGroups
 from app.shema import RegisterUser, ShowUser, LoginUser, UpdateUser, CreateGroup, ShowGroup, UpdateGroup
 from fastapi import HTTPException, status
 from app.db import get_session
@@ -51,7 +52,7 @@ text = """
 С уважением, администрация сайта QRCard.
 """
 
-
+#################################Работа с  пользователями##############################################
 # Регистрация пользователя с отправкой сообщения на email
 @app.post("/register")
 async def register_user(data:RegisterUser, session:AsyncSession = Depends(get_session)):
@@ -163,6 +164,7 @@ async def delete_user(
 
     return {"message": f"User with ID {user_id} has been deleted"}
 
+#################################Работа с токенами##############################################
 # Рефреш токен
 @app.post("/refresh")
 async def refresh(
@@ -296,6 +298,7 @@ async def logout(
 
     return {"detail": "Logged out successfully"}
 
+#################################Работа с группами##############################################
 # Создание группы
 @app.post("/groups/create", response_model=ShowGroup)
 async def create_group(data: CreateGroup, 
@@ -307,7 +310,7 @@ async def create_group(data: CreateGroup,
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Вы не имеетe прав на создание группы."
         )
-    newGroup = Group(**data.model_dump())
+    newGroup = Group(**data.model_dump(), user_id=current_user.id)
     session.add(newGroup)
     await session.commit()
     await session.refresh(newGroup)
@@ -326,6 +329,20 @@ async def get_group(
 
     return group
 
+# получение списка всех групп
+@app.get("/groups")
+async def get_groups(
+    current_user: User = Depends(get_current_user),
+    session:AsyncSession = Depends(get_session)
+    ):
+    if current_user.role.value != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Вы не имеете прав на просмотр групп."
+        )
+    profiles = await session.scalars(select(Group))
+    return profiles.all()
+
 # Редактирование названия группы
 @app.put("/groups/{group_id}")
 async def update_group_name(group_id: uuid.UUID, 
@@ -341,3 +358,123 @@ async def update_group_name(group_id: uuid.UUID,
 
     return {"detail": f"Group {group_id} name updated", 
             "group": {"id": group.id, "name_group": group.name_group}}
+
+@app.delete("/groups/{group_id}")
+async def delete_group(group_id: uuid.UUID,
+                       session: AsyncSession = Depends(get_session)):
+    group = await session.scalar(select(Group).where(Group.id == group_id))
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    await session.delete(group)
+    await session.commit()
+
+    return {"detail": f"Group {group_id} deleted"}
+
+####################################Работа с пользователями в группах##############################################
+# Добавление пользователя в группу
+@app.post("/groups/{group_id}/add_user/{user_id}")
+async def add_user_to_group(
+    group_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    if current_user.role.value != "ADMIN" and current_user.role.value != "TEACHER":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Вы не имеете прав на добавление пользователя в группу."
+        )   
+    group = await session.scalar(select(Group).where(Group.id == group_id))
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    user = await session.scalar(select(User).where(User.id == user_id))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    is_user_in_group = await session.scalar(
+        select(UsersGroups).where(
+            UsersGroups.group_id == group_id,
+            UsersGroups.user_id == user_id
+        )
+    )
+    if is_user_in_group:
+        raise HTTPException(status_code=409, detail="User already in group")
+
+    session.add(UsersGroups(group_id=group_id, user_id=user_id))
+    await session.commit()
+
+    return {"detail": f"User {user_id} added to group {group_id}"}
+
+# Получение всех групп пользователя
+@app.get("/users/{user_id}/groups", response_model=list[ShowGroup])
+async def get_user_groups(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    stmt = select(Group).where(Group.user_id == current_user.id)
+    result = await session.execute(stmt)
+    groups = result.scalars().all()
+    return groups
+
+# Получение всех пользователей в группе
+@app.get("/groups/{group_id}/users", response_model=list[ShowUser])
+async def get_group_users(
+    group_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    if current_user.role.value != "ADMIN" and current_user.role.value != "TEACHER":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Вы не имеете прав на просмотр пользователей в группе."
+        )
+    group = await session.scalar(select(Group).where(Group.id == group_id))
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    stmt = (
+        select(User)
+        .options(selectinload(User.groups))
+        .join(UsersGroups)
+        .where(UsersGroups.group_id == group_id)
+    )
+    result = await session.execute(stmt)
+    users = result.scalars().all()
+    return users
+
+# Удаление пользователя из группы
+@app.delete("/groups/{group_id}/remove_user/{user_id}")
+async def remove_user_from_group(
+    group_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    if current_user.role.value != "ADMIN" and current_user.role.value != "TEACHER":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Вы не имеете прав на удаление пользователя из группы."
+        )
+    group = await session.scalar(select(Group).where(Group.id == group_id))
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    user = await session.scalar(select(User).where(User.id == user_id))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    is_user_in_group = await session.scalar(
+        select(UsersGroups).where(
+            UsersGroups.group_id == group_id,
+            UsersGroups.user_id == user_id
+        )
+    )
+    if not is_user_in_group:
+        raise HTTPException(status_code=404, detail="User not in group")
+
+    await session.delete(is_user_in_group)
+    await session.commit()
+
+    return {"detail": f"User {user_id} removed from group {group_id}"}
