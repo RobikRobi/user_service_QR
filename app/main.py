@@ -1,3 +1,4 @@
+import logging
 from binascii import Error
 
 from fastapi import FastAPI, HTTPException, Request
@@ -12,6 +13,9 @@ from app.db import Base, engine
 from app.routers.auth_router import router as auth_router
 from app.routers.group_router import router as group_router
 from app.routers.user_router import router as user_router
+
+
+logger = logging.getLogger(__name__)
 
 
 app = FastAPI(
@@ -62,7 +66,7 @@ async def create_db():
     async with engine.begin() as conn:
         try:
             await conn.run_sync(Base.metadata.drop_all)
-        except Error as e:
-            print(e)
+        except Error:
+            logger.exception("Failed to drop database tables")
         await conn.run_sync(Base.metadata.create_all)
     return success_response("Database initialized")

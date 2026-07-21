@@ -1,4 +1,5 @@
 try:
+    import logging
     import smtplib
     from email.message import EmailMessage
 
@@ -7,6 +8,9 @@ try:
     from app.config import config
 except ImportError:
     Celery = None
+
+
+logger = logging.getLogger(__name__)
 
 
 if Celery is not None:
@@ -27,7 +31,7 @@ if Celery is not None:
     def send_email(to_email: str, subject: str, message: str):
         env = config.env_data
         if not env.SMTP_HOST or not env.SMTP_FROM_EMAIL:
-            print(f"Email task skipped for {to_email}: SMTP is not configured")
+            logger.warning("Email task skipped for %s: SMTP is not configured", to_email)
             return {"status": "skipped", "reason": "smtp_not_configured"}
 
         email = EmailMessage()
@@ -43,11 +47,11 @@ if Celery is not None:
                 smtp.login(env.SMTP_USERNAME, env.SMTP_PASSWORD)
             smtp.send_message(email)
 
-        print(f"Email sent to {to_email}: {subject}")
+        logger.info("Email sent to %s: %s", to_email, subject)
         return {"status": "sent", "to": to_email}
 else:
     class _SendEmailStub:
         def delay(self, to_email: str, subject: str, message: str):
-            print(f"Email task skipped for {to_email}: {subject}")
+            logger.warning("Email task skipped for %s: %s", to_email, subject)
 
     send_email = _SendEmailStub()
