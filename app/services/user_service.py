@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api_response import success_response
 from app.celery_app import send_email
 from app.email_templates import REGISTER_SUBJECT, REGISTER_TEXT
 from app.models.UsersModel import User
@@ -16,8 +17,8 @@ async def register_user(data: RegisterUser, session: AsyncSession) -> dict:
 
     if is_user_exists:
         raise HTTPException(
-            status_code=411,
-            detail={"status": 411, "data": "user is exists"},
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User already exists",
         )
 
     data_dict = data.model_dump()
@@ -33,9 +34,19 @@ async def register_user(data: RegisterUser, session: AsyncSession) -> dict:
     send_email.delay(user.email, REGISTER_SUBJECT, REGISTER_TEXT)
 
     user_token = create_access_token(user_id=user_id)
-    data_dict["token"] = user_token
 
-    return data_dict
+    return success_response(
+        "User registered successfully",
+        {
+            "id": user_id,
+            "name": user.name,
+            "surname": user.surname,
+            "email": user.email,
+            "dob": user.dob,
+            "role": user.role,
+            "token": user_token,
+        },
+    )
 
 
 async def update_user(data: UpdateUser, user: User, session: AsyncSession) -> User:
@@ -57,7 +68,7 @@ async def update_user(data: UpdateUser, user: User, session: AsyncSession) -> Us
     return user
 
 
-async def delete_user(user_id: uuid.UUID, current_user: User, session: AsyncSession) -> dict[str, str]:
+async def delete_user(user_id: uuid.UUID, current_user: User, session: AsyncSession) -> dict:
     if current_user.role.value != "ADMIN":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -72,4 +83,4 @@ async def delete_user(user_id: uuid.UUID, current_user: User, session: AsyncSess
     await session.delete(user)
     await session.commit()
 
-    return {"message": f"User with ID {user_id} has been deleted"}
+    return success_response("User deleted", {"user_id": user_id})

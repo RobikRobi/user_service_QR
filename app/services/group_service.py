@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.api_response import success_response
 from app.models.GroupModel import Group
 from app.models.UsersModel import User, UsersGroups
 from app.schemas.group import CreateGroup, UpdateGroup
@@ -74,13 +75,13 @@ async def update_group_name(
     await session.commit()
     await session.refresh(group)
 
-    return {
-        "detail": f"Group {group_id} name updated",
-        "group": {"id": group.id, "name_group": group.name_group},
-    }
+    return success_response(
+        "Group updated",
+        {"group": {"id": group.id, "name_group": group.name_group}},
+    )
 
 
-async def delete_group(group_id: uuid.UUID, current_user: User, session: AsyncSession) -> dict[str, str]:
+async def delete_group(group_id: uuid.UUID, current_user: User, session: AsyncSession) -> dict:
     group = await get_group(group_id, session)
     _ensure_group_owner_or_admin(
         current_user,
@@ -91,7 +92,7 @@ async def delete_group(group_id: uuid.UUID, current_user: User, session: AsyncSe
     await session.delete(group)
     await session.commit()
 
-    return {"detail": f"Group {group_id} deleted"}
+    return success_response("Group deleted", {"group_id": group_id})
 
 
 async def add_user_to_group(
@@ -99,7 +100,7 @@ async def add_user_to_group(
     user_id: uuid.UUID,
     current_user: User,
     session: AsyncSession,
-) -> dict[str, str]:
+) -> dict:
     _ensure_admin_or_teacher(
         current_user,
         "You do not have permission to add users to this group.",
@@ -119,7 +120,10 @@ async def add_user_to_group(
     session.add(UsersGroups(group_id=group_id, user_id=user_id))
     await session.commit()
 
-    return {"detail": f"User {user_id} added to group {group_id}"}
+    return success_response(
+        "User added to group",
+        {"group_id": group_id, "user_id": user_id},
+    )
 
 
 async def get_user_groups(current_user: User, session: AsyncSession) -> list[Group]:
@@ -151,7 +155,7 @@ async def remove_user_from_group(
     user_id: uuid.UUID,
     current_user: User,
     session: AsyncSession,
-) -> dict[str, str]:
+) -> dict:
     _ensure_admin_or_teacher(
         current_user,
         "You do not have permission to remove users from this group.",
@@ -171,7 +175,10 @@ async def remove_user_from_group(
     await session.delete(is_user_in_group)
     await session.commit()
 
-    return {"detail": f"User {user_id} removed from group {group_id}"}
+    return success_response(
+        "User removed from group",
+        {"group_id": group_id, "user_id": user_id},
+    )
 
 
 async def _get_user_and_group(group_id: uuid.UUID, user_id: uuid.UUID, session: AsyncSession) -> tuple[Group, User]:
