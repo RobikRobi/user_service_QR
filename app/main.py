@@ -3,9 +3,11 @@ from binascii import Error
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api_response import error_response, success_response
+from app.config import config
 from app.db import Base, engine
 from app.routers.auth_router import router as auth_router
 from app.routers.group_router import router as group_router
@@ -16,6 +18,14 @@ app = FastAPI(
     title="User service",
     version="1.0.0",
     root_path="/users"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=config.env_data.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(auth_router)

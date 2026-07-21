@@ -18,6 +18,7 @@ class AuthData(BaseModel):
 class EnvData(BaseSettings):
 
     USERS_DATABASE_URL: str
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:8080"
     JWT_PRIVATE_KEY_PATH: Path | None = None
     JWT_PUBLIC_KEY_PATH: Path | None = None
     JWT_ALGORITHM: str | None = None
@@ -30,6 +31,14 @@ class EnvData(BaseSettings):
     SMTP_FROM_EMAIL: str | None = None
     SMTP_USE_TLS: bool = True
     model_config = SettingsConfigDict(env_file=BASE_DIR / '.env', extra='ignore')
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.CORS_ORIGINS.split(",")
+            if origin.strip()
+        ]
 
 
 class Config(BaseModel):
