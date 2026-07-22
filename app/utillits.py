@@ -49,11 +49,16 @@ def create_refresh_token(user_id: UUID) -> str:
 
 # Обновление access token
 def decode_refresh_token(token: str) -> dict:
-    payload = jwt.decode(
-        jwt=token,
-        key=config.auth_data.public_key.read_text(),
-        algorithms=[config.auth_data.algorithm]
-    )
+    try:
+        payload = jwt.decode(
+            jwt=token,
+            key=config.auth_data.public_key.read_text(),
+            algorithms=[config.auth_data.algorithm]
+        )
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
     if payload.get("type") != "refresh":
         raise HTTPException(status_code=401, detail="Invalid token type")

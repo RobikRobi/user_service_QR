@@ -2,6 +2,7 @@ import os
 import sys
 import unittest
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -9,13 +10,17 @@ from unittest.mock import patch
 os.environ.setdefault("USERS_DATABASE_URL", "postgresql://test:test@localhost/test")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import jwt
 from fastapi import HTTPException
+from sqlalchemy.sql.dml import Delete
 
 from app.api_response import success_response
+from app.config import config
 from app.main import http_exception_handler
 from app.routers import auth_router, user_router
 from app.schemas.auth import LoginUser
 from app.schemas.user import RegisterUser
+from app.services import auth_service
 from app.utillits import create_access_token, create_refresh_token, decode_refresh_token, verify_access_token
 
 
@@ -147,6 +152,75 @@ class TokenTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(exc.exception.status_code, 401)
         self.assertEqual(exc.exception.detail, "Invalid token type")
+
+    async def test_expired_refresh_token_returns_unauthorized(self):
+        token = jwt.encode(
+            {
+                "sub": str(uuid.uuid4()),
+                "jti": str(uuid.uuid4()),
+                "type": "refresh",
+                "exp": datetime.now(timezone.utc) - timedelta(minutes=1),
+            },
+            key=config.auth_data.private_key.read_text(),
+            algorithm=config.auth_data.algorithm,
+        )
+
+        with self.assertRaises(HTTPException) as exc:
+            decode_refresh_token(token)
+
+        self.assertEqual(exc.exception.status_code, 401)
+        self.assertEqual(exc.exception.detail, "Token expired")
+
+
+class RefreshTokenServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cleanup_expired_refresh_tokens_deletes_old_rows(self):
+        class FakeSession:
+            def __init__(self):
+                self.statements = []
+                self.commits = 0
+
+            async def execute(self, statement):
+                self.statements.append(statement)
+
+            async def commit(self):
+                self.commits += 1
+
+        session = FakeSession()
+
+        await auth_service.cleanup_expired_refresh_tokens(session)
+
+        self.assertIsInstance(session.statements[0], Delete)
+        self.assertEqual(session.commits, 1)
+
+    async def test_refresh_rejects_expired_stored_token(self):
+        user_id = uuid.uuid4()
+        token_db = SimpleNamespace(
+            expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+            revoked=False,
+        )
+
+        class FakeResult:
+            def scalar_one_or_none(self):
+                return token_db
+
+        class FakeSession:
+            async def execute(self, statement):
+                return FakeResult()
+
+            async def commit(self):
+                pass
+
+        with patch.object(
+            auth_service,
+            "decode_refresh_token",
+            return_value={"sub": str(user_id), "type": "refresh"},
+        ):
+            with self.assertRaises(HTTPException) as exc:
+                await auth_service.refresh_user_token("refresh-token", FakeSession())
+
+        self.assertEqual(exc.exception.status_code, 401)
+        self.assertEqual(exc.exception.detail, "Token expired")
+        self.assertTrue(token_db.revoked)
 
 
 if __name__ == "__main__":

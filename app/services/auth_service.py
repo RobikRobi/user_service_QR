@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 from sqlalchemy import delete, select
@@ -21,7 +21,28 @@ from app.utillits import (
 )
 
 
+def _refresh_token_expiration() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(days=config.auth_data.days)
+
+
+def _is_expired(expires_at: datetime, now: datetime) -> bool:
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return expires_at <= now
+
+
+async def cleanup_expired_refresh_tokens(
+    session: AsyncSession,
+    now: datetime | None = None,
+) -> None:
+    now = now or datetime.now(timezone.utc)
+    await session.execute(delete(RefreshToken).where(RefreshToken.expires_at <= now))
+    await session.commit()
+
+
 async def login_user(data: LoginUser, session: AsyncSession) -> dict:
+    await cleanup_expired_refresh_tokens(session)
+
     stmt = select(User).where(User.email == data.email)
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()
@@ -35,7 +56,7 @@ async def login_user(data: LoginUser, session: AsyncSession) -> dict:
     refresh_db = RefreshToken(
         user_id=user.id,
         token_hash=hash_refresh_token(refresh_token),
-        expires_at=datetime.utcnow() + timedelta(days=config.auth_data.days),
+        expires_at=_refresh_token_expiration(),
     )
     session.add(refresh_db)
     await session.commit()
@@ -51,8 +72,11 @@ async def login_user(data: LoginUser, session: AsyncSession) -> dict:
 
 
 async def refresh_user_token(refresh_token: str, session: AsyncSession) -> dict:
-    payload = decode_refresh_token(refresh_token)
+    now = datetime.now(timezone.utc)
+    await cleanup_expired_refresh_tokens(session, now)
+
     token_hash = hash_refresh_token(refresh_token)
+    payload = decode_refresh_token(refresh_token)
 
     stmt = select(RefreshToken).where(
         RefreshToken.token_hash == token_hash,
@@ -64,6 +88,11 @@ async def refresh_user_token(refresh_token: str, session: AsyncSession) -> dict:
     if not token_db:
         raise HTTPException(status_code=401, detail="Token revoked")
 
+    if _is_expired(token_db.expires_at, now):
+        token_db.revoked = True
+        await session.commit()
+        raise HTTPException(status_code=401, detail="Token expired")
+
     token_db.revoked = True
 
     user_id = uuid.UUID(payload["sub"])
@@ -74,7 +103,7 @@ async def refresh_user_token(refresh_token: str, session: AsyncSession) -> dict:
         RefreshToken(
             user_id=user_id,
             token_hash=hash_refresh_token(new_refresh),
-            expires_at=datetime.utcnow() + timedelta(days=config.auth_data.days),
+            expires_at=_refresh_token_expiration(),
         )
     )
 
@@ -137,6 +166,8 @@ async def confirm_password_reset(data: PasswordResetConfirm, session: AsyncSessi
 
 
 async def logout_user(refresh_token: str, session: AsyncSession) -> dict:
+    await cleanup_expired_refresh_tokens(session)
+
     token_hash = hash_refresh_token(refresh_token)
 
     stmt = select(RefreshToken).where(
