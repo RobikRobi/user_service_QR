@@ -1,0 +1,50 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: user_service/Dockerfile
+    env_file:
+      - .env
+    environment:
+      USERS_DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/qrcard_users
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+
+  celery:
+    build:
+      context: ..
+      dockerfile: user_service/Dockerfile
+    command: celery -A app.celery_app.celery_app worker --loglevel=info
+    env_file:
+      - .env
+    environment:
+      USERS_DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/qrcard_users
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: qrcard_users
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
