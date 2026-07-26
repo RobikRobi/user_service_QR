@@ -1,0 +1,39 @@
+name: CI
+# скрипт будет запускаться, в том случае, 
+# если мы запушим код в ветки main и develop или сделали pull_request
+on: 
+  push:
+    branches:
+    - main
+    - develop
+  pull_request:
+
+# шаги для запуска скрипта
+jobs: 
+  test:
+    runs-on: ubuntu-latest #тестируем на ОС Ubuntu
+
+    steps:
+      - name: Checkout repository #Проверяем, что мы клонируем репозиторий
+        uses: actions/checkout@v4
+
+      - name: Set up Python #указываем версию Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv #Настраиваем UV
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies #Устанавливаем все зависимости
+        run: uv sync
+
+      - name: Run ruff #Прогоняем линтер
+        run: uv run ruff check .
+
+      - name: Run tests #Прогоняем тесты
+        env:
+          APP_ENV: test
+          APP_SECRET_KEY: ci-test-secret
+          USERS_DATABASE_URL: postgresql://test:test@localhost/test
+        run: uv run pytest --cov=app --cov-report=term-missing #Запускаю тесты
