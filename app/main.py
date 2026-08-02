@@ -14,7 +14,6 @@ from app.routers.auth_router import router as auth_router
 from app.routers.group_router import router as group_router
 from app.routers.user_router import router as user_router
 
-
 logger = logging.getLogger(__name__)
 
 

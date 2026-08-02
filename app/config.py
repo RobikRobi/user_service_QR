@@ -1,7 +1,7 @@
 from pathlib import Path
+
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 BASE_DIR = Path(__file__).parent.parent
 
@@ -46,7 +46,7 @@ class Config(BaseModel):
     env_data:EnvData = EnvData()
     auth_data:AuthData = AuthData()
 
-    def model_post_init(self, __context):
+    def model_post_init(self, __context, /):
         if self.env_data.JWT_PRIVATE_KEY_PATH:
             self.auth_data.private_key = self._resolve_path(self.env_data.JWT_PRIVATE_KEY_PATH)
         if self.env_data.JWT_PUBLIC_KEY_PATH:

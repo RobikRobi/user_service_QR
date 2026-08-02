@@ -1,9 +1,12 @@
 import datetime
 import uuid
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, ForeignKey, Boolean, DateTime, Index
+
 from app.db import Base
 from app.models.UsersModel import Users
+
 
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"

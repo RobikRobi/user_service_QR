@@ -2,15 +2,15 @@ import datetime
 import typing
 import uuid
 
-from app.db import Base
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import DateTime, ForeignKey
-from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
+from app.db import Base
 
 if typing.TYPE_CHECKING:
-    from app.models.UsersModel import Users, UsersGroups
+    from app.models.UsersModel import Users
 
 
 

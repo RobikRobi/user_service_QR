@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,14 +13,14 @@ from app.services.auth_service import (
     request_password_reset,
 )
 
-
 router = APIRouter()
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 @router.post("/login")
 async def login(
     data: LoginUser,
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
 ):
     return await login_user(data, session)
 
@@ -26,7 +28,7 @@ async def login(
 @router.post("/refresh")
 async def refresh(
     refresh_token: str,
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
 ):
     return await refresh_user_token(refresh_token, session)
 
@@ -34,7 +36,7 @@ async def refresh(
 @router.post("/password-reset")
 async def password_reset_request(
     data: PasswordResetRequest,
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
 ):
     return await request_password_reset(data, session)
 
@@ -42,7 +44,7 @@ async def password_reset_request(
 @router.post("/password-reset/confirm")
 async def password_reset_confirm(
     data: PasswordResetConfirm,
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
 ):
     return await confirm_password_reset(data, session)
 
@@ -50,6 +52,6 @@ async def password_reset_confirm(
 @router.post("/logout")
 async def logout(
     refresh_token: str,
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
 ):
     return await logout_user(refresh_token, session)

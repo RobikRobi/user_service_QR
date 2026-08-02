@@ -1,14 +1,14 @@
-import jwt
-from uuid import UUID, uuid4
-from hashlib import sha256
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError, InvalidHash
-from jwt import ExpiredSignatureError, InvalidTokenError
-from app.config import config
 import datetime
+from hashlib import sha256
+from uuid import UUID, uuid4
+
+import jwt
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHash, VerifyMismatchError
 from fastapi import HTTPException
+from jwt import ExpiredSignatureError, InvalidTokenError
 
-
+from app.config import config
 
 # --------------------------------------Работа с паролем-----------------------------------------------
 ph = PasswordHasher()
@@ -36,7 +36,7 @@ def create_refresh_token(user_id: UUID) -> str:
         "sub": str(user_id),
         "jti": str(uuid4()),
         "type": "refresh",
-        "exp": datetime.datetime.now(datetime.timezone.utc)
+        "exp": datetime.datetime.now(datetime.UTC)
         + datetime.timedelta(days=config.auth_data.days)
     }
 
@@ -70,7 +70,7 @@ def create_access_token(user_id: UUID) -> str:
     payload = {
         "sub": str(user_id),
         "type": "access",
-        "exp": datetime.datetime.now(datetime.timezone.utc)
+        "exp": datetime.datetime.now(datetime.UTC)
         + datetime.timedelta(minutes=config.auth_data.munites)
     }
 

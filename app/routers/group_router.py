@@ -1,4 +1,5 @@
 import uuid
+from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,25 +11,42 @@ from app.schemas.group import CreateGroup, ShowGroup, UpdateGroup
 from app.schemas.user import ShowUser
 from app.services.group_service import (
     add_user_to_group as add_user_to_group_service,
+)
+from app.services.group_service import (
     create_group as create_group_service,
+)
+from app.services.group_service import (
     delete_group as delete_group_service,
+)
+from app.services.group_service import (
     get_group as get_group_service,
+)
+from app.services.group_service import (
     get_group_users as get_group_users_service,
+)
+from app.services.group_service import (
     get_groups as get_groups_service,
+)
+from app.services.group_service import (
     get_user_groups as get_user_groups_service,
+)
+from app.services.group_service import (
     remove_user_from_group as remove_user_from_group_service,
+)
+from app.services.group_service import (
     update_group_name as update_group_name_service,
 )
 
-
 router = APIRouter()
+CurrentUserDep = Annotated[User, Depends(get_current_user)]
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 @router.post("/groups/create", response_model=ShowGroup)
 async def create_group(
     data: CreateGroup,
-    current_user=Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    current_user: CurrentUserDep,
+    session: SessionDep,
 ):
     return await create_group_service(data, current_user, session)
 
@@ -36,15 +54,15 @@ async def create_group(
 @router.get("/groups/{group_id}", response_model=ShowGroup)
 async def get_group(
     group_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session),
+    session: SessionDep,
 ):
     return await get_group_service(group_id, session)
 
 
 @router.get("/groups")
 async def get_groups(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    current_user: CurrentUserDep,
+    session: SessionDep,
 ):
     return await get_groups_service(current_user, session)
 
@@ -53,8 +71,8 @@ async def get_groups(
 async def update_group_name(
     group_id: uuid.UUID,
     data: UpdateGroup,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    current_user: CurrentUserDep,
+    session: SessionDep,
 ):
     return await update_group_name_service(group_id, data, current_user, session)
 
@@ -62,8 +80,8 @@ async def update_group_name(
 @router.delete("/groups/{group_id}")
 async def delete_group(
     group_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    current_user: CurrentUserDep,
+    session: SessionDep,
 ):
     return await delete_group_service(group_id, current_user, session)
 
@@ -72,16 +90,16 @@ async def delete_group(
 async def add_user_to_group(
     group_id: uuid.UUID,
     user_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    current_user: CurrentUserDep,
+    session: SessionDep,
 ):
     return await add_user_to_group_service(group_id, user_id, current_user, session)
 
 
 @router.get("/users/{user_id}/groups", response_model=list[ShowGroup])
 async def get_user_groups(
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    current_user: CurrentUserDep,
+    session: SessionDep,
 ):
     return await get_user_groups_service(current_user, session)
 
@@ -89,8 +107,8 @@ async def get_user_groups(
 @router.get("/groups/{group_id}/users", response_model=list[ShowUser])
 async def get_group_users(
     group_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    current_user: CurrentUserDep,
+    session: SessionDep,
 ):
     return await get_group_users_service(group_id, current_user, session)
 
@@ -99,7 +117,7 @@ async def get_group_users(
 async def remove_user_from_group(
     group_id: uuid.UUID,
     user_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+    current_user: CurrentUserDep,
+    session: SessionDep,
 ):
     return await remove_user_from_group_service(group_id, user_id, current_user, session)

@@ -2,7 +2,7 @@ import os
 import sys
 import unittest
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -21,7 +21,12 @@ from app.routers import auth_router, user_router
 from app.schemas.auth import LoginUser
 from app.schemas.user import RegisterUser
 from app.services import auth_service
-from app.utillits import create_access_token, create_refresh_token, decode_refresh_token, verify_access_token
+from app.utillits import (
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+    verify_access_token,
+)
 
 
 class UserRegistrationTests(unittest.IsolatedAsyncioTestCase):
@@ -159,7 +164,7 @@ class TokenTests(unittest.IsolatedAsyncioTestCase):
                 "sub": str(uuid.uuid4()),
                 "jti": str(uuid.uuid4()),
                 "type": "refresh",
-                "exp": datetime.now(timezone.utc) - timedelta(minutes=1),
+                "exp": datetime.now(UTC) - timedelta(minutes=1),
             },
             key=config.auth_data.private_key.read_text(),
             algorithm=config.auth_data.algorithm,
@@ -195,7 +200,7 @@ class RefreshTokenServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_refresh_rejects_expired_stored_token(self):
         user_id = uuid.uuid4()
         token_db = SimpleNamespace(
-            expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+            expires_at=datetime.now(UTC) - timedelta(minutes=1),
             revoked=False,
         )
 
@@ -214,9 +219,8 @@ class RefreshTokenServiceTests(unittest.IsolatedAsyncioTestCase):
             auth_service,
             "decode_refresh_token",
             return_value={"sub": str(user_id), "type": "refresh"},
-        ):
-            with self.assertRaises(HTTPException) as exc:
-                await auth_service.refresh_user_token("refresh-token", FakeSession())
+        ), self.assertRaises(HTTPException) as exc:
+            await auth_service.refresh_user_token("refresh-token", FakeSession())
 
         self.assertEqual(exc.exception.status_code, 401)
         self.assertEqual(exc.exception.detail, "Token expired")

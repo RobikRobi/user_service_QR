@@ -1,14 +1,15 @@
-import typing
 import datetime
+import typing
 import uuid
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import DateTime, Enum
-from sqlalchemy.sql import func
+
+from sqlalchemy import DateTime, Enum, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
 from app.db import Base
 from app.enum import UserRole
 from app.models.GroupModel import Group
-from sqlalchemy import ForeignKey, String
 
 if typing.TYPE_CHECKING:
     from app.models.TokenModel import RefreshToken

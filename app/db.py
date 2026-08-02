@@ -1,10 +1,16 @@
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession, AsyncAttrs
-from sqlalchemy.engine import make_url
-from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.pool import NullPool
-from app.config import config
 from uuid import uuid4
 
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import (
+    AsyncAttrs,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
+
+from app.config import config
 
 database_url = config.env_data.USERS_DATABASE_URL
 if database_url.startswith("postgresql://"):

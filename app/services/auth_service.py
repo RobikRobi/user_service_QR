@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 from sqlalchemy import delete, select
@@ -22,12 +22,16 @@ from app.utillits import (
 
 
 def _refresh_token_expiration() -> datetime:
-    return datetime.now(timezone.utc) + timedelta(days=config.auth_data.days)
+    return datetime.now(UTC) + timedelta(days=config.auth_data.days)
+
+
+def _password_reset_token_expiration() -> datetime:
+    return datetime.now(UTC) + timedelta(minutes=30)
 
 
 def _is_expired(expires_at: datetime, now: datetime) -> bool:
     if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+        expires_at = expires_at.replace(tzinfo=UTC)
     return expires_at <= now
 
 
@@ -35,7 +39,7 @@ async def cleanup_expired_refresh_tokens(
     session: AsyncSession,
     now: datetime | None = None,
 ) -> None:
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     await session.execute(delete(RefreshToken).where(RefreshToken.expires_at <= now))
     await session.commit()
 
@@ -72,7 +76,7 @@ async def login_user(data: LoginUser, session: AsyncSession) -> dict:
 
 
 async def refresh_user_token(refresh_token: str, session: AsyncSession) -> dict:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     await cleanup_expired_refresh_tokens(session, now)
 
     token_hash = hash_refresh_token(refresh_token)
@@ -129,7 +133,7 @@ async def request_password_reset(data: PasswordResetRequest, session: AsyncSessi
     reset_token = PasswordResetToken(
         token=token,
         user_id=user.id,
-        expires_at=datetime.utcnow() + timedelta(minutes=30),
+        expires_at=_password_reset_token_expiration(),
     )
 
     session.add(reset_token)
@@ -151,7 +155,7 @@ async def confirm_password_reset(data: PasswordResetConfirm, session: AsyncSessi
         select(PasswordResetToken).where(PasswordResetToken.token == data.token)
     )
 
-    if not token_obj or token_obj.expires_at < datetime.utcnow():
+    if not token_obj or _is_expired(token_obj.expires_at, datetime.now(UTC)):
         raise HTTPException(status_code=400, detail="Invalid or expired token")
 
     user = await session.get(User, token_obj.user_id)

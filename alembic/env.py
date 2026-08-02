@@ -1,17 +1,13 @@
 import asyncio
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from alembic import context
 from app.config import config as app_config
 from app.db import Base
-from app.models.GroupModel import Group
-from app.models.TokenModel import RefreshToken
-from app.models.UsersModel import PasswordResetToken, Users, UsersGroups
-
 
 config = context.config
 
