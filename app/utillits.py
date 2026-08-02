@@ -84,14 +84,16 @@ def create_access_token(user_id: UUID) -> str:
 # Декодирование токена
 async def decode_access_token(
     token: str,
-    algorithm: str = config.auth_data.algorithm,
-    public_key: str = config.auth_data.public_key.read_text()
+    algorithm: str | None = None,
+    public_key: str | None = None,
 ) -> dict:
     """
     Декодирует JWT и возвращает payload.
     Бросает HTTPException при ошибке.
     """
     try:
+        algorithm = algorithm or config.auth_data.algorithm
+        public_key = public_key or config.auth_data.public_key.read_text()
         payload = jwt.decode(
             jwt=token,
             key=public_key,
